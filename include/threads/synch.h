@@ -42,13 +42,13 @@ void cond_broadcast (struct condition *, struct lock *);
 //==================================================================
 //				Project 1 - Priority Scheduling
 //------------------------------------------------------------------
-bool CompareSemaphoreByPriority(const struct list_elem* l, const struct list_elem* r, void* aux UNUSED);
+bool compare_semaphore_by_priority(const struct list_elem* l, const struct list_elem* r, void* aux UNUSED);
 //==================================================================
 
 //==================================================================
 //				Project 1 - Priority Donation
 //------------------------------------------------------------------
-bool CompareDonationsByPriority(const struct list_elem* l, const struct list_elem* r, void* aux UNUSED);
+bool compare_donations_by_priority(const struct list_elem* l, const struct list_elem* r, void* aux UNUSED);
 //==================================================================
 /* Optimization barrier.
  *

@@ -99,35 +99,17 @@ struct thread {
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
 
-	//==================================================================
-	//				Project 1 - Alarm Clock
-	//------------------------------------------------------------------
 	int64_t				wakeup_ticks;
-	//==================================================================
 
-	//==================================================================
-	//				Project 1 - Priority Donation
-	//------------------------------------------------------------------
-	int 				original_priority;	/* ±âºÎ ¹ÞÀº ÈÄ¿¡ ´Ù½Ã ¿ø·¡ÀÇ ¿ì¼±¼øÀ§·Î µ¹¾Æ¿À±â À§ÇÑ ÀúÀå¿ë º¯¼ö*/
-	struct lock* 		wait_on_lock;		/* ½º·¹µå°¡ ÇöÀç ¾ò±â À§ÇØ ±â´Ù¸®°í ÀÖ´Â lock, ½º·¹µå´Â ÀÌ lockÀÌ releaseµÇ±â¸¦ ±â´Ù¸°´Ù.*/
-	struct list 		donations;			/* ½º·¹µå°¡ Á¡À¯ÇÏ°í ÀÖ´Â lockÀ» ¿äÃ»ÇÏ¸é¼­ priority¸¦ ±âºÎÇØÁØ ½º·¹µåµéÀ» ¿¬°á ¸®½ºÆ® ÇüÅÂ·Î ÀúÀåÇÑ´Ù. */
+	int 				original_priority;	
+	struct lock* 		wait_on_lock;		
+	struct list 		donations;			
 
-	/*	´Ù¸¥ ½º·¹µå°¡ Á¡À¯ÇÏ°í ÀÖ´Â lockÀ» ¿äÃ» ÇßÀ» ¶§ , ´Ù¸¥ ½º·¹µå¿¡°Ô priority¸¦ ±âºÎÇÏ¸é¼­ ÇØ´ç ½º·¹µåÀÇ donations¿¡ µé¾î°¥ ¶§ »ç¿ëµÇ´Â elem
-		±âÁ¸¿¡ ÀÖ´ø elemÀº ready_list¿Í sleep_list¿¡¼­ »ç¿ëÁßÀÌ¹Ç·Î donations¿¡¼­´Â »ç¿ëµÉ ¼ö ¾ø´Ù. 
-		elemÀº ÇÑ ¸®½ºÆ®¿¡¼­¸¸ »ç¿ëµÇ¾î¾ß ÇÑ´Ù. ready_list¿Í sleep_list´Â ±¸Á¶»ó µÎ ¸®½ºÆ®¿¡ °øÁ¸ ÇÒ ¼ö ¾ø±â ¶§¹®¿¡ 
-		±âÁ¸ ÄÚµå¿¡¼­´Â ÇÏ³ªÀÇ elem¸¸À¸·Îµµ ±¸ÇöÀÌ °¡´ÉÇß´Ù. 
-		lock°ú ¸¶Âù°¡Áö·Î lock¿äÃ»Àº ÇÑ ½º·¹µå´ç ÇÏ³ª¸¸ °¡´ÉÇÏ¹Ç·Î ÀÌ¸¦ À§ÇÑ elemµµ ÇÏ³ª¸¸ ÀÖÀ¸¸é µÈ´Ù.*/
 	struct list_elem	donation_elem;		
-	//==================================================================
 
-
-	//==================================================================
-	//				Project 1 - mlfqs
-	//------------------------------------------------------------------
 	int 				nice;
 	int 				recent_cpu;
 	struct list_elem	allelem;
-	//==================================================================
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
@@ -184,15 +166,15 @@ void do_iret (struct intr_frame *tf);
 //				Project 1 - Alarm Clock
 //------------------------------------------------------------------
 
-/* Àáµé ½º·¹µå¸¦ sleep_list¿¡ »ðÀÔÇØÁØ´Ù.
-	ÀÌ ¶§ ticks°¡ ÀÛÀº ½º·¹µå°¡ ¾ÕºÎºÐ¿¡ À§Ä¡ÇÏµµ·Ï Á¤·ÄÇÏ¿© »ðÀÔÇÑ´Ù. */
-void ThreadSleep(int64_t ticks);
+/* ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½å¸¦ sleep_listï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø´ï¿½.
+	ï¿½ï¿½ ï¿½ï¿½ ticksï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½å°¡ ï¿½ÕºÎºÐ¿ï¿½ ï¿½ï¿½Ä¡ï¿½Ïµï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½. */
+void thread_sleep(int64_t ticks);
 
-// ticks¸¦ ±âÁØÀ¸·Î Á¤·ÄÇÒ ¶§ »ç¿ëÇÏ´Â ÇÔ¼ö
-bool CompareThreadByTicks(const struct list_elem* l, const struct list_elem* r, void *aux UNUSED);
+// ticksï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½Ô¼ï¿½
+bool compare_thread_by_ticks(const struct list_elem* l, const struct list_elem* r, void *aux UNUSED);
 
-// sleep_list¸¦ È®ÀÎÇØ¼­ ƒÆ¾î³¯ ½º·¹µåµéÀ» ready_list·Î ¿Å°ÜÁÖ´Â ÇÔ¼ö 
-void ThreadWakeUp(int64_t current_ticks);
+// sleep_listï¿½ï¿½ È®ï¿½ï¿½ï¿½Ø¼ï¿½ ï¿½Æ¾î³¯ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ready_listï¿½ï¿½ ï¿½Å°ï¿½ï¿½Ö´ï¿½ ï¿½Ô¼ï¿½ 
+void thread_wake_up(int64_t current_ticks);
 
 //==================================================================
 
@@ -201,11 +183,11 @@ void ThreadWakeUp(int64_t current_ticks);
 //				Project 1 - Priority Scheduling
 //------------------------------------------------------------------
 
-// ¿ì¼±¼øÀ§¸¦ ±âÁØÀ¸·Î Á¤·ÄÇÒ ¶§ »ç¿ëÇÏ´Â ÇÔ¼ö
-bool CompareThreadByPriority(const struct list_elem* l, const struct list_elem* r, void *aux UNUSED);
+// ï¿½ì¼±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½Ô¼ï¿½
+bool compare_thread_by_priority(const struct list_elem* l, const struct list_elem* r, void *aux UNUSED);
 
-// yield¸¦ ÇÒ ¶§ ¿ì¼±¼øÀ§¸¦ ±âÁØÀ¸·Î ¾çº¸ÇÏ´Â ÇÔ¼ö 
-void ThreadYieldByPriority();
+// yieldï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ ï¿½ì¼±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½çº¸ï¿½Ï´ï¿½ ï¿½Ô¼ï¿½ 
+void thread_yield_by_priority();
 
 //==================================================================
 
@@ -213,22 +195,22 @@ void ThreadYieldByPriority();
 //				Project 1 - Priority Donatnion
 //------------------------------------------------------------------
 
-// ÇöÀç ½º·¹µå°¡ ¿øÇÏ´Â lockÀ» °¡Áø holder¿¡°Ô ÇöÀç ½º·¹µåÀÇ priority¸¦ ±âºÎÇÏ´Â ÇÔ¼ö
-// ÀÌ ¶§ holderµµ ¶Ç´Ù½Ã ´Ù¸¥ lockÀÇ release¸¦ ±â´Ù¸®°í ÀÖ´ÂÁö¸¦ È®ÀÎÇÏ¿© ¿¬¼âÀûÀ¸·Î 
-// ¸ðµç holderµéÀÇ priority¸¦ ¸ðµÎ ¹Ù²ãÁÖ¾î¾ß ÇÑ´Ù. 
-void DonatePriority();
-void ThreadUpdatePriorityFromDonations();
+// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½å°¡ ï¿½ï¿½ï¿½Ï´ï¿½ lockï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ holderï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ priorityï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½Ô¼ï¿½
+// ï¿½ï¿½ ï¿½ï¿½ holderï¿½ï¿½ ï¿½Ç´Ù½ï¿½ ï¿½Ù¸ï¿½ lockï¿½ï¿½ releaseï¿½ï¿½ ï¿½ï¿½Ù¸ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ï¿½ï¿½ï¿½ï¿½ È®ï¿½ï¿½ï¿½Ï¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 
+// ï¿½ï¿½ï¿½ holderï¿½ï¿½ï¿½ï¿½ priorityï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Ù²ï¿½ï¿½Ö¾ï¿½ï¿½ ï¿½Ñ´ï¿½. 
+void donate_priority();
+void thread_update_priority_from_donations();
 //==================================================================
 
 
 //==================================================================
 //				Project 1 - mlfqs
-//------------------------------------------------------------------
-void mlfqsCalculatePriority (struct thread *th);
-void mlfqsCalculateRecentCPU (struct thread *th);
-void mlfqsCalculateLoadAvg (void);
-void mlfqsIncrementRecentCPU (void);
-void mlfqsRecalculateRecentCPU (void);
+//---mlfqs_recalculate_prioirty---------------------------------------
+void mlfqs_calculate_priority (struct thread *th);
+void mlfqs_calculate_recent_CPU (struct thread *th);
+void mlfqs_calculate_load_avg (void);
+void mlfqs_increment_recent_CPU (void);
+void mlfqs_recalculate_recent_CPU (void);
 void mlfqsRecalculatePrioirty (void);
 
 //==================================================================

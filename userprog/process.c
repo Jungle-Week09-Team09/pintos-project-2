@@ -23,7 +23,7 @@
 #endif
 
 static void process_cleanup (void);
-static bool load (const char *file_name, struct intr_frame *if_);
+static bool load (const char *file_name, char *save_ptr, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
 
@@ -38,6 +38,12 @@ process_init (void) {
  * before process_create_initd() returns. Returns the initd's
  * thread id, or TID_ERROR if the thread cannot be created.
  * Notice that THIS SHOULD BE CALLED ONCE. */
+/**
+ * FILE_NAME에서 로드된 "initd"라는 첫 번째 사용자 랜드 프로그램을 시작
+ * 새 스레드는 process_create_initd()가 돌아오기 전에 예약(또는 종료)될 수 있음
+ * 스레드를 만들 수 없는 경우 initd의 thread id 또는 TID_ERROR를 반환
+ * 한번만 호출해야댐
+ */
 tid_t
 process_create_initd (const char *file_name) {
 	char *fn_copy;
@@ -45,10 +51,16 @@ process_create_initd (const char *file_name) {
 
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
+	// 단일 페이지 할당
 	fn_copy = palloc_get_page (0);
 	if (fn_copy == NULL)
 		return TID_ERROR;
+	// 문자열 이름 복사
 	strlcpy (fn_copy, file_name, PGSIZE);
+
+	// 입력값 중 가장 첫 번재 파일 이름만 가져옴
+	char *save_ptr;
+	strtok_r(file_name, " ", &save_ptr);
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
@@ -160,11 +172,11 @@ error:
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
+// 프로세스 실행
 int
 process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
-
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
@@ -176,19 +188,64 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
+	char *tmp, *save_ptr;
+	char *argv[32];
+	int argc = 0;
+
+	// 입력 값을 " " 기준으로 splitting
+	for(tmp = strtok_r(file_name, " ", &save_ptr); tmp != NULL; tmp = strtok_r(NULL, " ", &save_ptr)) {
+		argv[argc++] = tmp;
+	}
+
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (file_name, &save_ptr, &_if);
+
+	// 사용자 프로그램 실행 전 스택과 관련 레지스터 상태 추가
+	// argv[n][m] 
+	for (int i = argc - 1; i >= 0; i--) {
+		int size = strlen(argv[i]) + 1;
+		_if.rsp -= size;
+		memcpy(_if.rsp, argv[i], size);
+		argv[i] = _if.rsp;
+	}
+
+	// word-align
+	uint64_t align = (uint64_t)_if.rsp & ~0x7;
+	memset(align, 0, _if.rsp - align);
+	_if.rsp = align;
+
+	// argv[n+1]
+	_if.rsp -= sizeof(char *);
+	memset(_if.rsp, 0, sizeof(char *));
+
+	// argv[n]
+	for (int i = argc - 1; i >= 0; i--) {
+		_if.rsp -= sizeof(char *);
+		memcpy(_if.rsp, &argv[i], sizeof(char *));
+	}
+
+	// return address
+	_if.rsp -= sizeof(void *);
+	memset(_if.rsp, 0, sizeof(void *));
+	
+	// rdi
+	_if.R.rdi = argc;
+
+	// rsi
+	_if.R.rsi = _if.rsp + sizeof(void *);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)
 		return -1;
 
+	// 인수 전달 코드를 디버깅
+	// hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
+
 	/* Start switched process. */
 	do_iret (&_if);
 	NOT_REACHED ();
 }
-
 
 /* Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
@@ -204,6 +261,7 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	for(int i = 0; i < 2147000000; i++) {}
 	return -1;
 }
 
@@ -215,11 +273,14 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-
+	
 	process_cleanup ();
 }
 
 /* Free the current process's resources. */
+/**
+ * 현재 실행중인 프로세스의 리소스를 해제
+ */
 static void
 process_cleanup (void) {
 	struct thread *curr = thread_current ();
@@ -231,6 +292,7 @@ process_cleanup (void) {
 	uint64_t *pml4;
 	/* Destroy the current process's page directory and switch back
 	 * to the kernel-only page directory. */
+	// 현재 프로세스가 사용하는 페이지 디렉토리
 	pml4 = curr->pml4;
 	if (pml4 != NULL) {
 		/* Correct ordering here is crucial.  We must set
@@ -240,8 +302,10 @@ process_cleanup (void) {
 		 * directory before destroying the process's page
 		 * directory, or our active page directory will be one
 		 * that's been freed (and cleared). */
+		// 페이지 디렉토리 비활성화
 		curr->pml4 = NULL;
 		pml4_activate (NULL);
+		// 페이지 디렉토리 삭제
 		pml4_destroy (pml4);
 	}
 }
@@ -278,32 +342,40 @@ process_activate (struct thread *next) {
 
 /* Executable header.  See [ELF1] 1-4 to 1-8.
  * This appears at the very beginning of an ELF binary. */
+/**
+ * ELF(Executable and Linkable Format) 파일의 헤더를 나타내는 데이터 구조
+ * 실행 파일, 오브젝트 파일, 공유 라이브러리 및 코어 덤프에 사용되는 표준 파일 포맷
+ */
 struct ELF64_hdr {
-	unsigned char e_ident[EI_NIDENT];
-	uint16_t e_type;
-	uint16_t e_machine;
-	uint32_t e_version;
-	uint64_t e_entry;
-	uint64_t e_phoff;
-	uint64_t e_shoff;
-	uint32_t e_flags;
-	uint16_t e_ehsize;
-	uint16_t e_phentsize;
-	uint16_t e_phnum;
-	uint16_t e_shentsize;
-	uint16_t e_shnum;
-	uint16_t e_shstrndx;
+	unsigned char e_ident[EI_NIDENT]; // ELF 파일의 식별정보
+	uint16_t e_type; // 파일 타입
+	uint16_t e_machine; // CPU 아키텍처
+	uint32_t e_version; // ELF 버전
+	uint64_t e_entry; // 실행파일 진입점 주소 
+	uint64_t e_phoff; // 프로그램 헤더 테이블 오프셋
+	uint64_t e_shoff; // 섹션 헤더 테이블 오프셋
+	uint32_t e_flags; // 파일 플래그
+	uint16_t e_ehsize; // ELF 헤더의 크기
+	uint16_t e_phentsize; // 프로그램 헤더 엔트리 하나의 크기
+	uint16_t e_phnum; // 프로그램 헤더 엔트리의 개수
+	uint16_t e_shentsize; // 섹션 헤더 엔트리 하나의 크기
+	uint16_t e_shnum; // 섹션 헤더 엔트리의 개수
+	uint16_t e_shstrndx; // 섹션 헤더 문자열 테이블의 인덱스
 };
 
+/**
+ * ELF 파일의 프로그램 헤더 Program Header
+ * 실행 파일의 특정 세그먼트를 메모리로 로드하는 데 필요한 정보 포함
+ */
 struct ELF64_PHDR {
-	uint32_t p_type;
-	uint32_t p_flags;
-	uint64_t p_offset;
-	uint64_t p_vaddr;
-	uint64_t p_paddr;
-	uint64_t p_filesz;
-	uint64_t p_memsz;
-	uint64_t p_align;
+	uint32_t p_type; // 프로그램 헤더 타입 PT_...
+	uint32_t p_flags; // 세그먼트의 접근 권한 플래그, PF_...
+	uint64_t p_offset; // ELF 파일에서 이 세그먼트가 시작되는 오프셋, 파일 내 위치
+	uint64_t p_vaddr; // 이 세그먼트가 메모리에 로드될 때의 가상 주소, 실행 시 이 주소를 기준으로 메모리 매핑
+	uint64_t p_paddr; // 물리적 주소
+	uint64_t p_filesz; // ELF 파일에서 이 세그먼트의 크기
+	uint64_t p_memsz; // 메모리에서 이 세그먼트가 차지하는 크기
+	uint64_t p_align; // 이 세그먼트가 메모리에 로드될 때의 정렬 요구사항 (ex 4096 byte)
 };
 
 /* Abbreviations */
@@ -321,7 +393,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
 static bool
-load (const char *file_name, struct intr_frame *if_) {
+load (const char *file_name, char *save_ptr, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -413,9 +485,6 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
-
-	/* TODO: Your code goes here.
-	 * TODO: Implement argument passing (see project2/argument_passing.html). */
 
 	success = true;
 

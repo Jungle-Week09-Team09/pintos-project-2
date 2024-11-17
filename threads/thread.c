@@ -488,6 +488,13 @@ next_thread_to_run (void) {
 }
 
 /* Use iretq to launch the thread */
+/**
+ * 인터럽트 발생 시 필요한 정보를 저장하고, 실제 핸들러(intr_handler)로 제어를 넘기는 준비 작업을 수행
+ * - 인터럽트 정보를 스택에 저장.
+ * - 커널 레지스터 설정.
+ * - intr_handler 호출로 인터럽트 처리 실행.
+ * 인터럽트 처리 루틴에서 CPU 상태를 복원하고 인터럽트 이전의 실행 상태로 복귀하기 위해 사용
+ */
 void
 do_iret (struct intr_frame *tf) {
 	__asm __volatile(
@@ -821,4 +828,15 @@ void mlfqs_recalculate_prioirty (void)
     }
 
 	thread_yield_by_priority();
+}
+
+struct thread *get_thread_by_tid(tid_t tid) {
+	struct list_elem *e;
+	for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+		struct thread *t = list_entry(e, struct thread, allelem);
+		if(t->tid == tid) {
+			return t;
+		}
+	}
+	return NULL;
 }

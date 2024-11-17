@@ -8,6 +8,9 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 
+#include "filesys/filesys.h"
+#include "filesys/file.h"
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
@@ -39,8 +42,139 @@ syscall_init (void) {
 
 /* The main system call interface */
 void
-syscall_handler (struct intr_frame *f UNUSED) {
+syscall_handler (struct intr_frame *f UNUSED) { // %rdi, %rsi, %rdx, %r10, %r8, and %r9-
 	// TODO: Your implementation goes here.
-	printf ("system call!\n");
-	thread_exit ();
+	switch (f->R.rax)
+	{
+	case SYS_HALT:
+		halt();
+		break;
+	case SYS_EXIT:
+		exit(f->R.rdi);
+		break;
+	case SYS_FORK:
+		fork(f->R.rdi);
+		break;
+	case SYS_EXEC:
+		exec(f->R.rdi);
+		break;
+	case SYS_WAIT:
+		wait(f->R.rdi);
+		break;
+	case SYS_CREATE:
+		create(f->R.rdi, f->R.rsi);
+		break;
+	case SYS_REMOVE:
+		remove(f->R.rdi);
+		break;
+	case SYS_OPEN:
+		open(f->R.rdi);
+		break;
+	case SYS_FILESIZE:
+		filesize(f->R.rdi);
+		break;
+	case SYS_READ:
+		read(f->R.rdi, f->R.rsi, f->R.rdx);
+		break;
+	case SYS_WRITE:
+		write(f->R.rdi, f->R.rsi, f->R.rdx);
+		break;
+	case SYS_SEEK:
+		seek(f->R.rdi, f->R.rsi);
+		break;
+	case SYS_TELL:
+		tell(f->R.rdi);
+		break;
+	case SYS_CLOSE:
+		close(f->R.rdi);
+		break;
+	default:
+		thread_exit ();
+		break;
+	}
+	// printf("%d\n", f->R.rax);
+	// printf("%lld\n", f->R.rdi);
+	// printf("%d\n", f->R.rsi);
+	// printf("%d %d %d %d\n", *(int *)(f->rsp - 4), *(int *)(f->rsp), *(int *)(f->rsp + 4), *(int *)(f->rsp + 8));
+}
+// 시스템 호출 처리기 syscall_handler()가 제어권을 얻으면 
+// 시스템 호출 번호가 rax에 있고 
+// 인수는 %rdi, %rsi, %rdx, %r10, %r8 및 %r9 순서로 전달
+
+void halt (void) {
+	power_off();
+}
+
+void exit (int status) {
+	printf("%s: exit(%d)\n", thread_name(), status);
+	process_exit();
+	thread_exit();
+}
+
+pid_t fork (const char *thread_name) {
+	return process_fork(thread_name, NULL);
+	// process_create_initd(thread_name);
+}
+
+int exec (const char *cmd_line) {
+	return process_exec(cmd_line);
+}
+
+int wait (pid_t pid) {
+	struct thread *t = get_thread_by_tid(pid);
+	if (t == NULL) {
+		return -1;
+	}
+	while (t->status != THREAD_DYING) {
+		thread_yield();
+	}
+	return 0;
+}
+
+bool create (const char *file, unsigned initial_size) {
+	filesys_create(file, initial_size);
+}
+
+bool remove (const char *file) {
+	filesys_remove(file);
+}
+
+int open (const char *file) {
+	filesys_open(file);
+}
+
+int filesize (int fd) {
+	
+}
+
+int read (int fd, void *buffer, unsigned length) {
+
+}
+
+int write (int fd, const void *buffer, unsigned length) {
+	// printf("%s", (char *)buffer);
+	
+	if (fd == STDOUT_FILENO) {
+		putbuf(buffer, length);
+		return length;
+	}
+
+	struct file *file = process_get_file(fd);
+	if (file != NULL) {
+		return -1;
+	}
+
+	return file_write(file, buffer, length);
+}
+
+void seek (int fd, unsigned position) {
+
+}
+
+unsigned tell (int fd) {
+	
+}
+
+void close (int fd) {
+
 }

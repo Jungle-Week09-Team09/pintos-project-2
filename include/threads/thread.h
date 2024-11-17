@@ -5,6 +5,9 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#ifdef USERPROG
+// #include ""
+#endif
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -34,6 +37,9 @@ typedef int tid_t;
 #define NICE_DEFAULT 0
 #define RECENT_CPU_DEFAULT 0
 #define LOAD_AVG_DEFAULT 0
+
+#define USERPROG
+
 //==================================================================
 /* A kernel thread or user process.
  *
@@ -117,6 +123,8 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
+	struct file **fdt;
+
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
@@ -214,5 +222,7 @@ void mlfqs_recalculate_recent_CPU (void);
 void mlfqsRecalculatePrioirty (void);
 
 //==================================================================
+
+struct thread *get_thread_by_tid(tid_t tid);
 
 #endif /* threads/thread.h */

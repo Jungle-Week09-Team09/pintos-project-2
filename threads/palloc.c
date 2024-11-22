@@ -253,6 +253,9 @@ palloc_init (void) {
 	return ext_mem.end;
 }
 
+/**
+ * 물리 메모리 페이지를 할당, page_cnt 만큼 물리 메모리 블록을 반환함
+ */
 /* Obtains and returns a group of PAGE_CNT contiguous free pages.
    If PAL_USER is set, the pages are obtained from the user pool,
    otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
@@ -261,18 +264,22 @@ palloc_init (void) {
    FLAGS, in which case the kernel panics. */
 void *
 palloc_get_multiple (enum palloc_flags flags, size_t page_cnt) {
+	// 사용자 모드 또는 커널 모드 메모리 풀에서 페이지 할당
 	struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
 
 	lock_acquire (&pool->lock);
+	// 비트맵에서 연속된 page_cnt 개의 비어있는 페이지를 찾아 할당 표시 (flip) 함
 	size_t page_idx = bitmap_scan_and_flip (pool->used_map, 0, page_cnt, false);
 	lock_release (&pool->lock);
 	void *pages;
 
+	// 페이지를 찾으면 메모리 주소 계산
 	if (page_idx != BITMAP_ERROR)
 		pages = pool->base + PGSIZE * page_idx;
 	else
 		pages = NULL;
 
+	// 조건에 따라 메모리를 0 ㅇ로 초기화 
 	if (pages) {
 		if (flags & PAL_ZERO)
 			memset (pages, 0, PGSIZE * page_cnt);
@@ -291,6 +298,9 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt) {
    then the page is filled with zeros.  If no pages are
    available, returns a null pointer, unless PAL_ASSERT is set in
    FLAGS, in which case the kernel panics. */
+/**
+ * 단일 페이지 할당
+ */
 void *
 palloc_get_page (enum palloc_flags flags) {
 	return palloc_get_multiple (flags, 1);

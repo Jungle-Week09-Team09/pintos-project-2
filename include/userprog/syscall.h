@@ -4,15 +4,15 @@
 #include "threads/init.h"
 #include "userprog/process.h"
 
-typedef tid_t pid_t;
+struct lock filesys_lock;
 
 void syscall_init (void);
 
 void halt (void) NO_RETURN;
 void exit (int status) NO_RETURN;
-pid_t fork (const char *thread_name);
+tid_t fork (const char *thread_name, struct intr_frame *if_ UNUSED);
 int exec (const char *cmd_line);
-int wait (pid_t pid);
+int wait (tid_t pid);
 bool create (const char *file, unsigned initial_size);
 bool remove (const char *file);
 int open (const char *file);
@@ -22,5 +22,7 @@ int write (int fd, const void *buffer, unsigned length);
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
 void close (int fd);
+
+void check_address(void *addr);
 
 #endif /* userprog/syscall.h */
